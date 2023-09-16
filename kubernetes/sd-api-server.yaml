@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sd-api-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sd-api-server
+  template:
+    metadata:
+      labels:
+        app: sd-api-server
+    spec:
+      containers:
+      - image: $SD_API_SERVER_IMAGE
+        name: sd-api-server
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TOPIC_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: api-server-config
+              key: TOPIC_NAME
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: api-server-config
+              key: REDIS_HOST
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: api-server-config
+              key: LOG_LEVEL                                   
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sd-api-svc
+spec:
+  ports:
+  - port: 7860
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: sd-api-server
+  type: LoadBalancer

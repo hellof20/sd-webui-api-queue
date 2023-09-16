@@ -1,0 +1,22 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pubsub
+spec:
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - external:
+      metric:
+       name: pubsub.googleapis.com|subscription|num_undelivered_messages
+       selector:
+         matchLabels:
+           resource.labels.subscription_id: $subscription_id
+      target:
+        type: AverageValue
+        averageValue: 2
+    type: External
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: stable-diffusion-deployment

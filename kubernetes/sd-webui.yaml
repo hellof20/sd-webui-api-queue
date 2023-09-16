@@ -1,0 +1,85 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: filestore-nfs-pv
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes:
+  - ReadWriteMany
+  nfs:
+    path: /$FILESHARE_NAME
+    server: $filestore_ip
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: sd
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: filestore-nfs-pv
+  resources:
+    requests:
+      storage: 1Ti
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stable-diffusion-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stable-diffusion
+  template:
+    metadata:
+      labels:
+        app: stable-diffusion
+    spec:
+      volumes:
+        - name: stable-diffusion-storage
+          persistentVolumeClaim:
+            claimName: sd
+      containers:
+      - name: stable-diffusion-webui
+        image: $SD_WEBUI_IMAGE
+        resources:
+          limits:
+            cpu: 2
+            memory: 8Gi
+            nvidia.com/gpu: 1
+        ports:
+          - containerPort: 7860
+        volumeMounts:
+          - mountPath: "/stable-diffusion-webui/models/Stable-diffusion"
+            name: stable-diffusion-storage
+            subPath: models/Stable-diffusion/sd15
+          - mountPath: "/stable-diffusion-webui/outputs"
+            name: stable-diffusion-storage
+            subPath: outputs
+          - mountPath: "/stable-diffusion-webui/models/ControlNet"
+            name: stable-diffusion-storage
+            subPath: models/ControlNet
+      - name: sd-webui-worker
+        image: $SD_WORKER_IMAGE
+        env:
+        - name: SUBSCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: worker-config
+              key: SUBSCRIPTION
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: worker-config
+              key: REDIS_HOST
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: worker-config
+              key: LOG_LEVEL

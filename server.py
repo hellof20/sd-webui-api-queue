@@ -1,4 +1,4 @@
-from flask import Flask,request, abort
+from flask import Flask, request, abort
 import redis
 import os, sys, time, json
 from loguru import logger
@@ -10,6 +10,10 @@ log_level= os.getenv('LOG_LEVEL')
 topic_name = os.getenv('TOPIC_NAME')
 redis_host = os.getenv('REDIS_HOST')
 timeout = os.getenv('TIMEOUT', default = 20)
+logger.debug(topic_name)
+logger.debug(redis_host)
+logger.debug(log_level)
+logger.debug(timeout)
 
 if log_level == 'debug':
     logger.remove()
@@ -52,6 +56,7 @@ def sdapi(text):
         num += 1
     else:
         return 'Timeout'
+    r.delete(msg_id)
     return result
 
 if __name__ == '__main__':

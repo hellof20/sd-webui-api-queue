@@ -1,7 +1,7 @@
 # sd-webui-api-queue
-[stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)除了提供webui界面操作之外还提供了[API](https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/API)的方式和stable diffusion进行交互，可以实现text to image, image to image等功能。虽然webui界面的功能非常强大，但是在不同的业务使用场景下依然无法满足用户个性化的需求，因此用户自行开发UI界面然后对接API的模式更加通用和灵活。
+[stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) 除了提供webui界面操作之外还提供了[API](https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/API)的方式和stable diffusion进行交互，可以实现text to image, image to image等功能。虽然webui界面的功能非常强大，但是在不同的业务使用场景下依然无法满足用户个性化的需求，因此用户自行开发UI界面然后对接API的模式更加通用和灵活。
 
-stable-diffusion-webui提供的API是单机模式，对于大规模使用的场景下无法解决扩展性和性能的问题。
+由于stable-diffusion-webui提供的API是单机模式，对于大规模使用的场景下无法解决扩展性，性能和成本的问题。
 
 sd-webui-api-queue的基本实现原理是在webui api前面部署API Server拦截用户的请求，将所有请求发送到消息队列。Worker组件监听消息队列，拿到用户的请求后转发给本地的stable diffusion，处理完成后将结果写入数据存储。API Server根据每个用户请求生成的唯一message id从数据存储中查询处理结果。原理架构如下:
 ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/b5f81da6-9822-4c78-a1d9-57bb9c99ed22)

@@ -1,131 +1,56 @@
 # sd-webui-api-queue
+[stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)除了提供webui界面操作之外还提供了[API](https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/API)的方式和stable diffusion进行交互，可以实现text to image, image to image等功能。虽然webui界面的功能非常强大，但是在不同的业务使用场景下依然无法满足用户个性化的需求，因此用户自行开发UI界面然后对接API的模式更加通用和灵活。
 
-## Setup 
-```
-export GKE_CLUSTER_NAME=sd-cluster
-export REDIS_CLUSTER_NAME=sdcluster
-export PROJECT_ID=speedy-victory-336109
-export REGION=asia-southeast1
-export ZONE=asia-southeast1-a
-export VPC_NETWORK=myvpc
-export FILESTORE_NAME=sdfilestore
-export FILESHARE_NAME=sd
-export DOCKER_REPO_NAME=singapore
-export TOPIC_NAME=sd-input
-export SD_API_SERVER_IMAGE="asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/gcp-sd-api:v4"
-export SD_WORKER_IMAGE="asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/gcp-sd-worker:v5"
-export SD_WEBUI_IMAGE="asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/sd-webui:inference"
-```
+stable-diffusion-webui提供的API是单机模式，对于大规模使用的场景下无法解决扩展性和性能的问题。
 
-## Enable services
-```
-gcloud services enable compute.googleapis.com artifactregistry.googleapis.com container.googleapis.com file.googleapis.com
-```
+sd-webui-api-queue的基本实现原理是在webui api前面部署API Server拦截用户的请求，将所有请求发送到消息队列。Worker组件监听消息队列，拿到用户的请求后转发给本地的stable diffusion，处理完成后将结果写入数据存储。API Server根据每个用户请求生成的唯一message id从数据存储中查询处理结果。原理架构如下:
+![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/b5f81da6-9822-4c78-a1d9-57bb9c99ed22)
 
-## Create public gke cluster
-```
-gcloud container clusters create ${GKE_CLUSTER_NAME} \
-    --project ${PROJECT_ID} \
-    --network ${VPC_NETWORK} \
-    --release-channel "None" \
-    --image-type "UBUNTU_CONTAINERD" \
-    --num-nodes 1 \
-    --enable-autoscaling --total-min-nodes "1" --total-max-nodes "2" --location-policy "BALANCED" \
-    --machine-type "g2-standard-4" \
-    --accelerator type=nvidia-l4,count=1 \
-    --addons HorizontalPodAutoscaling,HttpLoadBalancing,GcePersistentDiskCsiDriver,GcpFilestoreCsiDriver \
-    --enable-image-streaming \
-    --scopes "https://www.googleapis.com/auth/cloud-platform" \
-    --region ${REGION} \
-    --node-locations ${ZONE}
-```
+整个方案包含以下几个组成部分
+- API Server
 
-## Grant default service account pub/sub read and write permissions.
+用户将请求发送到API Server（和stable-diffusion-webui原生API保持一致），API Server将用户请求的内容和uri组成消息写入消息队列，然后从数据存储中查询stable diffusion处理结果，查询到结果后返回给用户。如果一段时间内查询不到结果就返回Timeout.
+- Queue
 
-## Install nvidia driver
-https://cloud.google.com/kubernetes-engine/docs/how-to/gpus?hl=zh-cn#ubuntu
+消息队列比较简单，提供消息队列的功能即可
+- Worker
+
+Worker和stable-diffusion-webui部署在同一台服务器或者同一个pod内，Worker监听到有消息之后调用本地的stable-diffusion-webui原生API进行处理，得到的处理后写入数据存储。
+- Data
+
+数据存储，提供数据存储和查询的能力
+
+## GCP上的部署架构如下
+![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/4daef31c-370d-4e6d-8404-3cd6f95bdc09)
+
+### 架构说明
+- API Server，Worker和stable-diffusion-webui部署在GKE中
+- 消息队列采用托管的Pub/Sub，简单易用
+- 数据存储采用托管的Redis, Redis可以提供快速的数据写入和查询能力
+- stable-diffusion-webui涉及到模型文件，Lora等内容的共享，因此采用托管的Filestore在不同的stable-diffusion-webui共享和持久化存储
+- GKE HPA根据从Cloud Monitoring中获取消息队列中未处理的消息数量，根据该指标进行弹性伸缩
+- Artifact Registry提供Docker镜像仓库，API Server，Worker和stable-diffusion-webui的镜像都可以存放在Artifact Registry中
+
+## 方案部署
+1. 打开deploy.sh修改"Required parameters"部分内容
+   ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/c0ad2752-02f3-4163-a941-88390f1f357d)
+其中PROJECT_ID, VPC_NETWORK, REGION, ZONE按实际情况填写，GKE_CLUSTER_NAME，REDIS_CLUSTER_NAME，FILESTORE_NAME，TOPIC_NAME可随意填写。SD_WEBUI_IMAGE需要特别注意，改为你自己的stable-diffusion-webui docker image的地址，如果没有现成的也可以参考GCP之前的[stable-diffusion-webui on GKE](https://github.com/GoogleCloudPlatform/stable-diffusion-on-gcp/tree/main/Stable-Diffusion-UI-GKE)方案进行构建.
+2. 运行部署脚本
 ```
-kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/ubuntu/daemonset-preloaded-R525.yaml
+bash deploy.sh
 ```
 
-## Docker repo
-```
-gcloud artifacts repositories create ${DOCKER_REPO_NAME} --repository-format=docker --location=${REGION}
-```
+## 测试
+1. 获取GKE credential
+   ```
+   gcloud container clusters get-credentials your_gke_cluster_name --region your_gke_clsuter_region
+   ```
+2. 获取API Server的Load Balancer外网地址
+   ```
+   kubectl get svc
+   ```
+3. 可用Postman进行测试
+   ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/47ff6958-715e-45a8-b164-4f42c555fa85)
+4. 将返回的images中的base64字符串转成图片
+   ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/106323a7-5fd9-487d-947e-609f070687e1)
 
-## Build docker image
-```
-gcloud auth configure-docker ${REGION}-docker.pkg.dev
-docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${DOCKER_REPO_NAME}/gcp-sd-api:v1 -f docker/Dockerfile.server .
-docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${DOCKER_REPO_NAME}/gcp-sd-worker:v2 -f docker/Dockerfile.worker .
-docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${DOCKER_REPO_NAME}/gcp-sd-api:v1
-docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${DOCKER_REPO_NAME}/gcp-sd-worker:v1
-```
-
-## Pub/Sub
-```
-gcloud pubsub topics create ${TOPIC_NAME} --project ${PROJECT_ID}
-gcloud pubsub subscriptions create ${TOPIC_NAME}-sub --topic=${TOPIC_NAME} --project ${PROJECT_ID}
-```
-
-## Redis
-```
-gcloud redis instances create ${REDIS_CLUSTER_NAME} \
-    --project=${PROJECT_ID}  \
-    --tier=basic \
-    --size=1 \
-    --region=${REGION} \
-    --redis-version=redis_6_x \
-    --network=${VPC_NETWORK} \
-    --zone=${ZONE} \
-    --connect-mode=DIRECT_PEERING
-```
-
-## Filestore
-```
-gcloud filestore instances create ${FILESTORE_NAME} \
-    --project=${PROJECT_ID}  \
-    --zone=${ZONE} \
-    --tier=BASIC_HDD \
-    --file-share=name=${FILESHARE_NAME},capacity=1TB \
-    --network=name=${VPC_NETWORK}
-```
-
-## Deploy
-```
-export log_level="debug"
-export topic_name="projects/${PROJECT_ID}/topics/${TOPIC_NAME}"
-export subscription_id="${TOPIC_NAME}-sub"
-export subscription="projects/${PROJECT_ID}/subscriptions/${TOPIC_NAME}-sub"
-export redis_host=$(gcloud redis instances describe ${REDIS_CLUSTER_NAME} --project=${PROJECT_ID} --region=${REGION} --format json|jq -r .host)
-export filestore_ip=$(gcloud filestore instances describe ${FILESTORE_NAME} --project=${PROJECT_ID} --zone=${ZONE} --format json |jq -r .networks[].ipAddresses[])
-
-kubectl create configmap worker-config \
-    --from-literal=SUBSCRIPTION=${subscription} \
-    --from-literal=REDIS_HOST=${redis_host} \
-    --from-literal=LOG_LEVEL=${log_level}
-
-kubectl create configmap api-server-config \
-    --from-literal=TOPIC_NAME=${topic_name} \
-    --from-literal=REDIS_HOST=${redis_host} \
-    --from-literal=LOG_LEVEL=${log_level}
-
-envsubst < kubernetes/sd-api-server.yaml | kubectl apply -f -
-envsubst < kubernetes/sd-webui.yaml | kubectl apply -f -
-
-```
-
-## Auto scaling with pub/sub topic message num
-```
-kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
-envsubst < kubernetes/hpa.yaml | kubectl apply -f -
-```
-
-## Clean
-```
-kubectl delete -f kubernetes/sd-api-server.yaml
-kubectl delete -f kubernetes/sd-webui.yaml
-kubectl delete configmap worker-config
-kubectl delete configmap api-server-config
-kubectl delete -f kubernetes/hpa.yaml
-```

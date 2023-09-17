@@ -30,7 +30,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stable-diffusion-deployment
+  name: sd-worker
 spec:
   replicas: 1
   selector:
@@ -48,6 +48,12 @@ spec:
       containers:
       - name: stable-diffusion-webui
         image: $SD_WEBUI_IMAGE
+        readinessProbe:
+          httpGet:
+            path: /app_id
+            port: 7860
+          initialDelaySeconds: 10
+          periodSeconds: 5
         resources:
           limits:
             cpu: 2
@@ -65,21 +71,27 @@ spec:
           - mountPath: "/stable-diffusion-webui/models/ControlNet"
             name: stable-diffusion-storage
             subPath: models/ControlNet
-      - name: sd-webui-worker
+      - name: sd-worker
         image: $SD_WORKER_IMAGE
+        readinessProbe:
+          httpGet:
+            path: /app_id
+            port: 7860
+          initialDelaySeconds: 10
+          periodSeconds: 5
         env:
         - name: SUBSCRIPTION
           valueFrom:
             configMapKeyRef:
-              name: worker-config
+              name: sd-worker-config
               key: SUBSCRIPTION
         - name: REDIS_HOST
           valueFrom:
             configMapKeyRef:
-              name: worker-config
+              name: sd-worker-config
               key: REDIS_HOST
         - name: LOG_LEVEL
           valueFrom:
             configMapKeyRef:
-              name: worker-config
+              name: sd-worker-config
               key: LOG_LEVEL

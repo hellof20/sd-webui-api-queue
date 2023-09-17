@@ -6,14 +6,21 @@ from google.cloud import pubsub_v1
 
 app = Flask(__name__)
 
-log_level= os.getenv('LOG_LEVEL')
 topic_name = os.getenv('TOPIC_NAME')
 redis_host = os.getenv('REDIS_HOST')
+log_level= os.getenv('LOG_LEVEL', default='INFO')
 timeout = os.getenv('TIMEOUT', default = 20)
-logger.debug(topic_name)
-logger.debug(redis_host)
-logger.debug(log_level)
-logger.debug(timeout)
+logger.debug("topic_name: %s" % topic_name)
+logger.debug("redis_host: %s" % redis_host)
+logger.debug("log_level: %s" % log_level)
+logger.debug("timeout: %s" % timeout)
+
+try:
+    r = redis.Redis(host=redis_host, port=6379, db=0)
+    r.ping()
+except Exception as e:
+    logger.error(e)
+    sys.exit()
 
 if log_level == 'debug':
     logger.remove()
@@ -38,25 +45,21 @@ def sdapi(text):
         msg_id = pub_msg(msg = data, topic = topic_name)
         logger.debug("msg_id: " + msg_id)
     except Exception as e:
-        logger.error('Write request to queue failed.')
-        abort(500)
-    try:
-        r = redis.Redis(host=redis_host, port=6379, db=0)
-        r.set(msg_id, '')
-    except Exception as e:
-        logger.error('Connect to Redis failed.')
+        logger.error(e)
         abort(500)
     num = 0
-    while num < int(timeout)*2:
-        value = r.get(msg_id)
-        if value != b'':
-            result = value
+    while num < int(timeout):
+        # logger.debug('check msg_id ...')
+        if r.exists(msg_id):
+            result = r.get(msg_id)
+            logger.debug('msg_id value is: %s' % result)
             break
         time.sleep(0.5)
-        num += 1
+        num += 0.5
     else:
-        return 'Timeout'
+        result = 'Timeout'
     r.delete(msg_id)
+    logger.debug('msg_id %s deleted from Redis.' % msg_id)
     return result
 
 if __name__ == '__main__':

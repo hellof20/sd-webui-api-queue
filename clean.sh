@@ -2,7 +2,7 @@
 
 export PROJECT_ID=speedy-victory-336109
 export VPC_NETWORK=myvpc
-export GKE_CLUSTER_NAME=sd-gke
+export GKE_CLUSTER_NAME=my-gke
 export REDIS_CLUSTER_NAME=sd-redis
 export REGION=asia-southeast1
 export ZONE=asia-southeast1-a

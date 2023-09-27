@@ -6,9 +6,10 @@ export PROJECT_ID=speedy-victory-336109
 export VPC_NETWORK=myvpc
 export REGION=asia-southeast1
 export ZONE=asia-southeast1-a
-export GKE_CLUSTER_NAME=sd-gke
+export GKE_CLUSTER_NAME=my-gke
 export REDIS_CLUSTER_NAME=sd-redis
 export FILESTORE_NAME=sd-filestore
+export FILESHARE_NAME=sd
 export TOPIC_NAME=sd-topic
 export SD_WEBUI_IMAGE="asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/sd-webui:inference"
 

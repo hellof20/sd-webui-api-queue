@@ -97,7 +97,7 @@ bash deploy.sh
 ## 图生图
 
 ### 同步请求并在线查看图片
-- preview = false
+- preview = true
 - async_generate = false
 ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/63e39270-122a-4b01-a6a4-6266299bada4)
 

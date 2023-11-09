@@ -36,6 +36,7 @@ Worker和stable-diffusion-webui部署在同一台服务器或者同一个pod内�
    ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/51140f0f-e619-4169-b933-672f96f936fd)
 
 其中PROJECT_ID, VPC_NETWORK, REGION, ZONE按实际情况填写，GKE_CLUSTER_NAME，REDIS_CLUSTER_NAME，FILESTORE_NAME可随意填写。SD_WEBUI_IMAGE需要特别注意，改为你自己的stable-diffusion-webui docker image的地址，如果没有现成的也可以参考GCP之前的[stable-diffusion-webui on GKE](https://github.com/GoogleCloudPlatform/stable-diffusion-on-gcp/tree/main/Stable-Diffusion-UI-GKE)方案进行构建.
+
 2. 运行部署脚本
 ```
 bash deploy.sh
@@ -71,7 +72,7 @@ bash deploy.sh
 ```
 - preview表示是否在线预览图片
 - async_generate表示是否为异步请求
-- sd_model_checkpoint表示所使用的SD模型是什么，不包含.safetensors
+- sd_model_checkpoint表示所使用的SD模型是什么，不包含.safetensors。部署完成后默认可使用的模型是v1-5-pruned-emaonly，想要使用其他模型需要先上传到Filestore中的Stabel Diffustion中的Models目录下。
 
 ### 同步请求并在线查看图片
 - preview = true
@@ -91,6 +92,16 @@ bash deploy.sh
 - preview = false
 - async_generate = false
 ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/6d4a8371-9c42-4d42-b1fa-f64b2137f0c6)
+
+
+## 图生图
+
+### 同步请求并在线查看图片
+- preview = false
+- async_generate = false
+![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/63e39270-122a-4b01-a6a4-6266299bada4)
+
+### 其他使用方法和文生图一致
 
 
 

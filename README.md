@@ -33,14 +33,15 @@ Worker和stable-diffusion-webui部署在同一台服务器或者同一个pod内�
 
 ## 方案部署
 1. 打开deploy.sh修改"Required parameters"部分内容
-   ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/c0ad2752-02f3-4163-a941-88390f1f357d)
-其中PROJECT_ID, VPC_NETWORK, REGION, ZONE按实际情况填写，GKE_CLUSTER_NAME，REDIS_CLUSTER_NAME，FILESTORE_NAME，TOPIC_NAME可随意填写。SD_WEBUI_IMAGE需要特别注意，改为你自己的stable-diffusion-webui docker image的地址，如果没有现成的也可以参考GCP之前的[stable-diffusion-webui on GKE](https://github.com/GoogleCloudPlatform/stable-diffusion-on-gcp/tree/main/Stable-Diffusion-UI-GKE)方案进行构建.
+   ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/51140f0f-e619-4169-b933-672f96f936fd)
+
+其中PROJECT_ID, VPC_NETWORK, REGION, ZONE按实际情况填写，GKE_CLUSTER_NAME，REDIS_CLUSTER_NAME，FILESTORE_NAME可随意填写。SD_WEBUI_IMAGE需要特别注意，改为你自己的stable-diffusion-webui docker image的地址，如果没有现成的也可以参考GCP之前的[stable-diffusion-webui on GKE](https://github.com/GoogleCloudPlatform/stable-diffusion-on-gcp/tree/main/Stable-Diffusion-UI-GKE)方案进行构建.
 2. 运行部署脚本
 ```
 bash deploy.sh
 ```
 
-## 测试
+## 文生图测试
 1. 获取GKE credential
    ```
    gcloud container clusters get-credentials your_gke_cluster_name --region your_gke_clsuter_region
@@ -49,8 +50,47 @@ bash deploy.sh
    ```
    kubectl get svc
    ```
-3. 可用Postman进行测试
-   ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/47ff6958-715e-45a8-b164-4f42c555fa85)
-4. 将返回的images中的base64字符串转成图片
-   ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/106323a7-5fd9-487d-947e-609f070687e1)
+### 参数说明
+```
+{
+    "gcp_parameters": {
+        "preview": true, // optional
+        "async_generate": true, // optional
+        "sd_model_checkpoint": "cuteyukimixAdorable_specialchapter" //must, do not include .safetensors
+    },
+    "prompt": "solo, 1girl, deep-yellow hair, medium bob cut, orange-colored eyes, brown boots, happy, :D, white shirts, orange-colored balloon skirt, sitting on big pumpkin tart, (pumpkin tart:1.4), pumpkin-pie, many pumpkins, grape vines,childbook,[(WHITE BACKGROUND:1.5),::5] HEXAGON",
+    "negative_prompt": "NG_DeepNegative_V1_75T, EasyNegativeV2,  extra fingers, fewer fingers, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, (worst quality, low quality:1.4), Negative2, (low quality, worst quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit,fewer digits, (extra arms:1.2), (bad-artist:0.6), bad-image-v2-39000",
+    "batch_size": 1,
+    "steps": 25,
+    "width": 512,
+    "height": 768,
+    "cfg_scale": 7,
+    "seed": 1598900424,
+    "sampler_index": "DPM++ 2M Karras"
+}
+```
+- preview表示是否在线预览图片
+- async_generate表示是否为异步请求
+- sd_model_checkpoint表示所使用的SD模型是什么，不包含.safetensors
+
+### 同步请求并在线查看图片
+- preview = true
+- async_generate = false
+这种方式便于调试和查看结果
+![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/6d65130a-c480-476b-99ff-534e8d8f8b06)
+
+   
+### 异步请求获取结果
+- async_generate = true
+1. 异步请求立即返回id，后台生成图片
+![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/f697c793-e11b-4ddf-9af7-f2d266167ecf)
+2. 根据id查询生成结果
+![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/97ff508f-86e4-494b-8d3a-541ba576e03f)
+
+### 同步请求获取结果
+- preview = false
+- async_generate = false
+![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/6d4a8371-9c42-4d42-b1fa-f64b2137f0c6)
+
+
 

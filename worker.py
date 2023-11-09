@@ -4,8 +4,10 @@ import redis
 from loguru import logger
 
 log_level= os.getenv('LOG_LEVEL', default='INFO')
-subscription = os.getenv('SUBSCRIPTION')
-redis_host = os.getenv('REDIS_HOST')
+project_id = os.getenv('PROJECT_ID')
+subscription = 'projects/'+project_id+'/subscriptions/'+os.getenv('MODEL_NAME')
+model = os.getenv('MODEL_NAME') + '.safetensors'
+redis_host = os.getenv('REDIS_HOST', default = '127.0.0.1')
 sd_api = os.getenv('SD_API', default = 'http://127.0.0.1:7860')
 logger.debug("subscription: %s" % subscription)
 logger.debug("redis_host: %s" % redis_host)
@@ -53,6 +55,11 @@ def send_request_sd_api(msg):
     logger.debug(sd_api+uri)
     respone = requests.post(sd_api+uri, json=parameters)
     return respone
+
+logger.info('change model ...')
+time.sleep(30)
+requests.post(sd_api+'/sdapi/v1/options', json={"sd_model_checkpoint": "%s" % model})
+
 
 logger.info('Waiting request...')
 while True:

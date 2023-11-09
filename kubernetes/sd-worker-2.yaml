@@ -30,7 +30,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sd-worker
+  name: sd-worker2
 spec:
   replicas: 1
   selector:
@@ -47,13 +47,13 @@ spec:
             claimName: sd
       containers:
       - name: stable-diffusion-webui
-        image: $SD_WEBUI_IMAGE
+        image: asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/sd-webui:inference
         readinessProbe:
           httpGet:
             path: /app_id
             port: 7860
           initialDelaySeconds: 10
-          periodSeconds: 5
+          periodSeconds: 5        
         resources:
           limits:
             cpu: 2
@@ -72,7 +72,7 @@ spec:
             name: stable-diffusion-storage
             subPath: models/ControlNet
       - name: sd-worker
-        image: $SD_WORKER_IMAGE
+        image: hellof20/sd-worker:v2
         imagePullPolicy: Always
         readinessProbe:
           httpGet:
@@ -84,20 +84,20 @@ spec:
         - name: PROJECT_ID
           valueFrom:
             configMapKeyRef:
-              name: sd-worker-config
+              name: sd-worker-config2
               key: PROJECT_ID
         - name: MODEL_NAME
           valueFrom:
             configMapKeyRef:
-              name: sd-worker-config
+              name: sd-worker-config2
               key: MODEL_NAME
         - name: REDIS_HOST
           valueFrom:
             configMapKeyRef:
-              name: sd-worker-config
+              name: sd-worker-config2
               key: REDIS_HOST
         - name: LOG_LEVEL
           valueFrom:
             configMapKeyRef:
-              name: sd-worker-config
+              name: sd-worker-config2
               key: LOG_LEVEL

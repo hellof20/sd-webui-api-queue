@@ -10,13 +10,13 @@ export GKE_CLUSTER_NAME=my-gke
 export REDIS_CLUSTER_NAME=sd-redis
 export FILESTORE_NAME=sd-filestore
 export FILESHARE_NAME=sd
-export TOPIC_NAME=sd-topic
+export MODEL_NAME=v1-5-pruned-emaonly
 export SD_WEBUI_IMAGE="asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/sd-webui:inference"
 
 # Optional parameters
 export LOG_LEVEL="debug"
-export SD_SERVER_IMAGE="hellof20/sd-server:v1"
-export SD_WORKER_IMAGE="hellof20/sd-worker:v1"
+export SD_SERVER_IMAGE="hellof20/sd-server:v2"
+export SD_WORKER_IMAGE="hellof20/sd-worker:v2"
 
 echo "Enable services ... "
 gcloud services enable compute.googleapis.com \
@@ -65,8 +65,8 @@ gcloud filestore instances create ${FILESTORE_NAME} \
     --async
 
 echo "Create Pub/Sub topic and subscription ..."
-gcloud pubsub topics create ${TOPIC_NAME} --project ${PROJECT_ID}
-gcloud pubsub subscriptions create ${TOPIC_NAME}-sub --topic=${TOPIC_NAME} --project ${PROJECT_ID} 
+gcloud pubsub topics create ${MODEL_NAME} --project ${PROJECT_ID}
+gcloud pubsub subscriptions create ${MODEL_NAME} --topic=${MODEL_NAME} --project ${PROJECT_ID} 
 
 waitTime=0
 ready="ok"
@@ -99,30 +99,45 @@ echo "Install L4 GPU driver ..."
 kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
 
 echo "Deply sd-server and sd-worker to GKE ..."
-export topic_path="projects/${PROJECT_ID}/topics/${TOPIC_NAME}"
-export subscription_id="${TOPIC_NAME}-sub"
-export subscription="projects/${PROJECT_ID}/subscriptions/${TOPIC_NAME}-sub"
 export redis_host=$(gcloud redis instances describe ${REDIS_CLUSTER_NAME} --project=${PROJECT_ID} --region=${REGION} --format json|jq -r .host)
 export filestore_ip=$(gcloud filestore instances describe ${FILESTORE_NAME} --project=${PROJECT_ID} --zone=${ZONE} --format json |jq -r .networks[].ipAddresses[])
 
 kubectl create configmap sd-worker-config \
-    --from-literal=SUBSCRIPTION=${subscription} \
+    --from-literal=MODEL_NAME=${MODEL_NAME} \
+    --from-literal=PROJECT_ID=${PROJECT_ID} \
     --from-literal=REDIS_HOST=${redis_host} \
     --from-literal=LOG_LEVEL=${LOG_LEVEL}
 
 kubectl create configmap sd-server-config \
-    --from-literal=TOPIC_NAME=${topic_path} \
+    --from-literal=PROJECT_ID=${PROJECT_ID} \
     --from-literal=REDIS_HOST=${redis_host} \
     --from-literal=LOG_LEVEL=${LOG_LEVEL}
 
 envsubst < kubernetes/sd-server.yaml | kubectl apply -f -
 envsubst < kubernetes/sd-worker.yaml | kubectl apply -f -
 
-echo "Deploy autoscaling depend on pub/sub topic messages num ..."
-kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
-envsubst < kubernetes/hpa.yaml | kubectl apply -f -
+
+# echo "Deploy autoscaling depend on pub/sub topic messages num ..."
+# kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
+# envsubst < kubernetes/hpa.yaml | kubectl apply -f -
 
 
 # kubectl get APIService
 # kubectl -n custom-metrics edit deploy custom-metrics-stackdriver-adapter 修改cpu和memory
 # image streaming
+
+
+# export MODEL_NAME=cuteyukimixAdorable_specialchapter
+# export PROJECT_ID=speedy-victory-336109
+# export SD_WEBUI_IMAGE="asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/sd-webui:inference"
+# export SD_WORKER_IMAGE="hellof20/sd-worker:v2"
+# export redis_host=$(gcloud redis instances describe ${REDIS_CLUSTER_NAME} --project=${PROJECT_ID} --region=${REGION} --format json|jq -r .host)
+# export filestore_ip=$(gcloud filestore instances describe ${FILESTORE_NAME} --project=${PROJECT_ID} --zone=${ZONE} --format json |jq -r .networks[].ipAddresses[])
+
+# kubectl create configmap sd-worker-config2 \
+#     --from-literal=MODEL_NAME=${MODEL_NAME} \
+#     --from-literal=PROJECT_ID=${PROJECT_ID} \
+#     --from-literal=REDIS_HOST=${redis_host} \
+#     --from-literal=LOG_LEVEL=${LOG_LEVEL}
+
+# envsubst < kubernetes/sd-worker-2.yaml | kubectl apply -f -

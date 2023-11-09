@@ -18,11 +18,11 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: TOPIC_NAME
+        - name: PROJECT_ID
           valueFrom:
             configMapKeyRef:
               name: sd-server-config
-              key: TOPIC_NAME
+              key: PROJECT_ID
         - name: REDIS_HOST
           valueFrom:
             configMapKeyRef:

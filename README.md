@@ -47,7 +47,7 @@ Worker和stable-diffusion-webui部署在同一台服务器或者同一个pod内�
 1. 打开deploy.sh修改"Required parameters"部分内容
    ![image](https://github.com/hellof20/sd-webui-api-queue/assets/8756642/51140f0f-e619-4169-b933-672f96f936fd)
 
-其中PROJECT_ID, VPC_NETWORK, REGION, ZONE按实际情况填写，GKE_CLUSTER_NAME，REDIS_CLUSTER_NAME，FILESTORE_NAME可随意填写。SD_WEBUI_IMAGE需要特别注意，改为你自己的stable-diffusion-webui docker image的地址，如果没有现成的也可以参考GCP之前的[stable-diffusion-webui on GKE](https://github.com/GoogleCloudPlatform/stable-diffusion-on-gcp/tree/main/Stable-Diffusion-UI-GKE)方案进行构建.
+其中PROJECT_ID, VPC_NETWORK, REGION, ZONE按实际情况填写，GKE_CLUSTER_NAME，REDIS_CLUSTER_NAME，FILESTORE_NAME可保持不变。SD_WEBUI_IMAGE需要特别注意，改为你自己的stable-diffusion-webui docker image的地址，如果没有现成的也可以参考GCP之前的[stable-diffusion-webui on GKE](https://github.com/GoogleCloudPlatform/stable-diffusion-on-gcp/tree/main/Stable-Diffusion-UI-GKE)方案进行构建.
 
 2. 运行部署脚本
 ```
@@ -115,5 +115,31 @@ bash deploy.sh
 
 ### 其他使用方法和文生图一致
 
+## 添加新模型
 
+1. 模型文件上传Filestore
+- 下载模型文件
+- 上传至Filestore
+2. 创建模型对应的Pub/Sub topic
+```
+export MODEL_NAME=cuteyukimixAdorable_specialchapter
+gcloud pubsub topics create $MODEL_NAME
+gcloud pubsub subscriptions create model_name --topic $MODEL_NAME
+```
+3. 创建新的K8S Deployment
+```
+export PROJECT_ID=speedy-victory-336109
+export FILESHARE_NAME=sd
+export SD_WEBUI_IMAGE="asia-southeast1-docker.pkg.dev/speedy-victory-336109/singapore/sd-webui:inference"
+export SD_WORKER_IMAGE="hellof20/sd-worker:v2"
+export redis_host=$(gcloud redis instances describe ${REDIS_CLUSTER_NAME} --project=${PROJECT_ID} --region=${REGION} --format json|jq -r .host)
+export filestore_ip=$(gcloud filestore instances describe ${FILESTORE_NAME} --project=${PROJECT_ID} --zone=${ZONE} --format json |jq -r .networks[].ipAddresses[])
 
+kubectl create configmap sd-worker-config2 \
+    --from-literal=MODEL_NAME=${MODEL_NAME} \
+    --from-literal=PROJECT_ID=${PROJECT_ID} \
+    --from-literal=REDIS_HOST=${redis_host} \
+    --from-literal=LOG_LEVEL=${LOG_LEVEL}
+
+envsubst < kubernetes/sd-worker-2.yaml | kubectl apply -f -
+```
